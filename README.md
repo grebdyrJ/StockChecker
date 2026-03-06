@@ -41,6 +41,12 @@ pip install -r requirements.txt
 python stock_watcher.py
 ```
 
+GUI mode:
+
+```powershell
+python stock_watcher_gui.py
+```
+
 ## Build standalone EXE (no Python needed on target machine)
 
 Build machine steps:
@@ -50,19 +56,29 @@ pip install -r requirements-build.txt
 powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
 ```
 
-Output:
-- `dist\\stock-watcher.exe`
+Outputs:
+- `dist\\stock-watcher.exe` (CLI)
+- `dist\\stock-watcher-gui.exe` (GUI)
 
 Deploy steps:
-- Copy `dist\\stock-watcher.exe` and `config.json` to the target Windows machine.
+- Copy your chosen EXE and `config.json` to the target Windows machine.
 - Set `FASTMAIL_APP_PASSWORD` on that machine if using email alerts.
-- Run `stock-watcher.exe` directly.
+- Run the EXE directly.
 
 Important: the app reads `config.json` from the same folder as the EXE.
 
+## GUI features
+
+The GUI includes:
+- Current stock state (`IN STOCK`, `Out of stock`, `Unknown`, `Error`)
+- Last check time
+- Last in-stock time (current session)
+- Next scheduled check time
+- Recent check history with detection source/errors
+
 ## Optional: run at login
 
-Create a shortcut in your Startup folder that points to `stock-watcher.exe`.
+Create a shortcut in your Startup folder that points to your chosen EXE.
 
 Startup folder path:
 
