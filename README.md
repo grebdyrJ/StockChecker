@@ -4,7 +4,13 @@ This app checks a product page on a schedule and alerts you when it appears to b
 
 ## Configure
 
-Edit `config.json`:
+Create your local config from the sample:
+
+```powershell
+Copy-Item .\config.example.json .\config.json
+```
+
+Then edit `config.json`:
 - `url`: product page URL.
 - `check_every_seconds`: how often to check.
 - `css_selector`: optional; use a selector for the stock status element (recommended).
@@ -60,8 +66,8 @@ powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
 ```
 
 Outputs:
-- `dist\\stock-watcher.exe` (CLI)
-- `dist\\stock-watcher-gui.exe` (GUI)
+- `dist\stock-watcher.exe` (CLI)
+- `dist\stock-watcher-gui.exe` (GUI)
 
 Deploy steps:
 - Copy your chosen EXE and `config.json` to the target Windows machine.

@@ -1,0 +1,31 @@
+﻿{
+  "url": "https://example.com/product-page",
+  "check_every_seconds": 45,
+  "request_timeout_seconds": 20,
+  "css_selector": "button[title*='to cart']",
+  "in_stock_keywords": [
+    "add to cart"
+  ],
+  "out_of_stock_keywords": [
+    "auto-notify",
+    "out of stock",
+    "sold out"
+  ],
+  "notify_every_in_stock_check": false,
+  "open_browser_on_in_stock": true,
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  "email_notifications": {
+    "enabled": false,
+    "smtp_server": "smtp.fastmail.com",
+    "smtp_port": 465,
+    "use_ssl": true,
+    "use_starttls": false,
+    "username": "you@example.com",
+    "from_address": "you@example.com",
+    "to_addresses": [
+      "you@example.com"
+    ],
+    "subject_prefix": "[Stock Alert]",
+    "password_env": "FASTMAIL_APP_PASSWORD"
+  }
+}
