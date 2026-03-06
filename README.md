@@ -1,14 +1,8 @@
 ﻿# Windows Stock Watcher
 
-This script checks a product page on a schedule and alerts you when it appears to be in stock.
+This app checks a product page on a schedule and alerts you when it appears to be in stock.
 
-## 1) Install Python packages
-
-```powershell
-pip install requests beautifulsoup4 win10toast
-```
-
-## 2) Configure
+## Configure
 
 Edit `config.json`:
 - `url`: product page URL.
@@ -20,7 +14,7 @@ Edit `config.json`:
 
 Tip: open the page in browser DevTools and inspect the stock text. Put that selector in `css_selector` for better accuracy.
 
-## 3) Fastmail email alerts
+## Fastmail email alerts
 
 1. In Fastmail, create an app password for SMTP (Settings -> Password & Security -> App passwords).
 2. In PowerShell, set the app password in your current session:
@@ -40,21 +34,35 @@ Default Fastmail SMTP values in the sample config:
 - `use_ssl`: `true`
 - `use_starttls`: `false`
 
-## 4) Run
+## Run with Python (dev mode)
 
 ```powershell
+pip install -r requirements.txt
 python stock_watcher.py
 ```
 
-Leave the terminal open while monitoring.
+## Build standalone EXE (no Python needed on target machine)
 
-## 5) Optional: run in background at login
-
-Create a shortcut in your Startup folder that runs:
+Build machine steps:
 
 ```powershell
-python C:\Users\jrryd\OneDrive\Documents\Codex\GPU\stock_watcher.py
+pip install -r requirements-build.txt
+powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
 ```
+
+Output:
+- `dist\\stock-watcher.exe`
+
+Deploy steps:
+- Copy `dist\\stock-watcher.exe` and `config.json` to the target Windows machine.
+- Set `FASTMAIL_APP_PASSWORD` on that machine if using email alerts.
+- Run `stock-watcher.exe` directly.
+
+Important: the app reads `config.json` from the same folder as the EXE.
+
+## Optional: run at login
+
+Create a shortcut in your Startup folder that points to `stock-watcher.exe`.
 
 Startup folder path:
 
@@ -64,6 +72,6 @@ Startup folder path:
 
 ## Notes
 
-- If email is misconfigured, desktop toast alerts still work and the script logs the email error.
-- Some stores render stock status with JavaScript after page load. If this script always shows `unknown`, the page likely needs a browser-automation version (Playwright/Selenium).
+- If email is misconfigured, desktop toast alerts still work and the app logs the email error.
+- Some stores render stock status with JavaScript after page load. If this app always shows `unknown`, the page likely needs a browser-automation version (Playwright/Selenium).
 - Respect website terms and avoid very aggressive check intervals.

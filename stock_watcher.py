@@ -19,8 +19,12 @@ except Exception:
     ToastNotifier = None
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = SCRIPT_DIR / "config.json"
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+else:
+    APP_DIR = Path(__file__).resolve().parent
+
+CONFIG_PATH = APP_DIR / "config.json"
 
 
 @dataclass
@@ -244,7 +248,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
 
