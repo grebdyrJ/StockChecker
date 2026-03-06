@@ -16,19 +16,22 @@ Tip: open the page in browser DevTools and inspect the stock text. Put that sele
 
 ## Fastmail email alerts
 
-1. In Fastmail, create an app password for SMTP (Settings -> Password & Security -> App passwords).
-2. In PowerShell, set the app password in your current session:
+You now have two options:
+
+1. GUI app password (no extra PowerShell window)
+- Open the GUI.
+- In **Email Settings**, enter your Fastmail App Password in **App Password**.
+- Click **Save Settings**.
+
+2. Environment variable (existing method)
 
 ```powershell
 $env:FASTMAIL_APP_PASSWORD = "your-fastmail-app-password"
 ```
 
-3. Update these fields in `config.json`:
-- `email_notifications.username`
-- `email_notifications.from_address`
-- `email_notifications.to_addresses`
+Then set **Password Env Name** to `FASTMAIL_APP_PASSWORD`.
 
-Default Fastmail SMTP values in the sample config:
+Default Fastmail SMTP values:
 - `smtp_server`: `smtp.fastmail.com`
 - `smtp_port`: `465`
 - `use_ssl`: `true`
@@ -62,7 +65,7 @@ Outputs:
 
 Deploy steps:
 - Copy your chosen EXE and `config.json` to the target Windows machine.
-- Set `FASTMAIL_APP_PASSWORD` on that machine if using email alerts.
+- If using env-var password mode, set the env var on that machine.
 - Run the EXE directly.
 
 Important: the app reads `config.json` from the same folder as the EXE.
@@ -75,7 +78,8 @@ The GUI includes:
 - Last in-stock time (current session)
 - Next scheduled check time
 - Recent check history with detection source/errors
-- In-app editable settings (URL, interval, selector, keywords, flags) with Save/Reload to config.json
+- In-app editable settings (URL, interval, selector, keywords, flags)
+- In-app editable email settings including Fastmail app password
 - American timestamp format (`MM-DD-YYYY hh:mm:ss AM/PM`)
 
 ## Optional: run at login
@@ -93,4 +97,3 @@ Startup folder path:
 - If email is misconfigured, desktop toast alerts still work and the app logs the email error.
 - Some stores render stock status with JavaScript after page load. If this app always shows `unknown`, the page likely needs a browser-automation version (Playwright/Selenium).
 - Respect website terms and avoid very aggressive check intervals.
-

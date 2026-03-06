@@ -39,7 +39,7 @@ class StockWatcherGui:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Stock Watcher")
-        self.root.geometry("980x680")
+        self.root.geometry("1020x760")
 
         self.cfg = load_config(CONFIG_PATH)
         self.last_status: str | None = None
@@ -55,6 +55,9 @@ class StockWatcherGui:
         self._populate_settings_from_config()
         self._set_idle_state()
         self._schedule_queue_pump()
+
+    def _read_raw_config(self) -> dict:
+        return json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig"))
 
     def _build_ui(self) -> None:
         main = ttk.Frame(self.root, padding=14)
@@ -102,28 +105,72 @@ class StockWatcherGui:
         self._setting_row(settings_card, 4, "In-Stock Keywords", self.in_keywords_var, width=95)
         self._setting_row(settings_card, 5, "Out-Stock Keywords", self.out_keywords_var, width=95)
 
-        flag_row = ttk.Frame(settings_card)
-        flag_row.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=(6, 0))
+        flags_row = ttk.Frame(settings_card)
+        flags_row.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=(6, 0))
         ttk.Checkbutton(
-            flag_row,
+            flags_row,
             text="Notify every in-stock check",
             variable=self.notify_every_var,
         ).pack(side=tk.LEFT, padx=(0, 12))
         ttk.Checkbutton(
-            flag_row,
+            flags_row,
             text="Open browser on in-stock",
             variable=self.open_browser_var,
         ).pack(side=tk.LEFT)
 
-        action_row = ttk.Frame(settings_card)
-        action_row.grid(row=7, column=0, columnspan=2, sticky=tk.W, pady=(10, 0))
+        email_card = ttk.LabelFrame(main, text="Email Settings", padding=10)
+        email_card.pack(fill=tk.X, pady=(2, 8))
+
+        self.email_enabled_var = tk.BooleanVar(value=False)
+        self.email_smtp_server_var = tk.StringVar()
+        self.email_smtp_port_var = tk.StringVar()
+        self.email_ssl_var = tk.BooleanVar(value=True)
+        self.email_starttls_var = tk.BooleanVar(value=False)
+        self.email_username_var = tk.StringVar()
+        self.email_from_var = tk.StringVar()
+        self.email_to_var = tk.StringVar()
+        self.email_subject_prefix_var = tk.StringVar()
+        self.email_password_var = tk.StringVar()
+        self.email_password_env_var = tk.StringVar()
+
+        ttk.Checkbutton(email_card, text="Enable email notifications", variable=self.email_enabled_var).grid(
+            row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 4)
+        )
+        self._setting_row(email_card, 1, "SMTP Server", self.email_smtp_server_var, width=40)
+        self._setting_row(email_card, 2, "SMTP Port", self.email_smtp_port_var, width=10)
+
+        protocol_row = ttk.Frame(email_card)
+        protocol_row.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(2, 2))
+        ttk.Checkbutton(protocol_row, text="Use SSL", variable=self.email_ssl_var).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Checkbutton(protocol_row, text="Use STARTTLS", variable=self.email_starttls_var).pack(side=tk.LEFT)
+
+        self._setting_row(email_card, 4, "Username", self.email_username_var, width=45)
+        self._setting_row(email_card, 5, "From", self.email_from_var, width=45)
+        self._setting_row(email_card, 6, "To (comma-separated)", self.email_to_var, width=85)
+        self._setting_row(email_card, 7, "Subject Prefix", self.email_subject_prefix_var, width=25)
+
+        ttk.Label(email_card, text="App Password:", width=16).grid(row=8, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(email_card, textvariable=self.email_password_var, width=45, show="*").grid(
+            row=8, column=1, sticky=tk.W, pady=2, padx=(6, 0)
+        )
+
+        self._setting_row(email_card, 9, "Password Env Name", self.email_password_env_var, width=30)
+
+        hint = (
+            "Tip: Enter App Password to save directly in config.json (no PowerShell env var needed), "
+            "or set Password Env Name to keep using an environment variable."
+        )
+        ttk.Label(email_card, text=hint).grid(row=10, column=0, columnspan=2, sticky=tk.W, pady=(4, 0))
+
+        action_row = ttk.Frame(main)
+        action_row.pack(fill=tk.X, pady=(2, 8))
         ttk.Button(action_row, text="Save Settings", command=self.save_settings).pack(side=tk.LEFT, padx=(0, 8))
         ttk.Button(action_row, text="Reload Settings", command=self.reload_settings).pack(side=tk.LEFT)
 
         history_card = ttk.LabelFrame(main, text="Recent Checks", padding=10)
         history_card.pack(fill=tk.BOTH, expand=True)
 
-        self.history_list = tk.Listbox(history_card, height=13)
+        self.history_list = tk.Listbox(history_card, height=12)
         self.history_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         scrollbar = ttk.Scrollbar(history_card, orient=tk.VERTICAL, command=self.history_list.yview)
@@ -145,6 +192,8 @@ class StockWatcherGui:
         parent.columnconfigure(1, weight=1)
 
     def _populate_settings_from_config(self) -> None:
+        raw = self._read_raw_config()
+
         self.url_var.set(self.cfg.url)
         self.interval_var.set(str(self.cfg.check_every_seconds))
         self.timeout_var.set(str(self.cfg.request_timeout_seconds))
@@ -153,6 +202,23 @@ class StockWatcherGui:
         self.out_keywords_var.set(", ".join(self.cfg.out_of_stock_keywords))
         self.notify_every_var.set(self.cfg.notify_every_in_stock_check)
         self.open_browser_var.set(self.cfg.open_browser_on_in_stock)
+
+        email_raw = raw.get("email_notifications", {})
+        self.email_enabled_var.set(bool(email_raw.get("enabled", False)))
+        self.email_smtp_server_var.set(email_raw.get("smtp_server", "smtp.fastmail.com"))
+        self.email_smtp_port_var.set(str(email_raw.get("smtp_port", 465)))
+        self.email_ssl_var.set(bool(email_raw.get("use_ssl", True)))
+        self.email_starttls_var.set(bool(email_raw.get("use_starttls", False)))
+        self.email_username_var.set(email_raw.get("username", ""))
+        self.email_from_var.set(email_raw.get("from_address", ""))
+        to_addresses = email_raw.get("to_addresses", [])
+        if isinstance(to_addresses, list):
+            self.email_to_var.set(", ".join(to_addresses))
+        else:
+            self.email_to_var.set(str(to_addresses))
+        self.email_subject_prefix_var.set(email_raw.get("subject_prefix", "[Stock Alert]"))
+        self.email_password_var.set("")
+        self.email_password_env_var.set(email_raw.get("password_env", ""))
 
     def _set_idle_state(self) -> None:
         self.start_btn.configure(state=tk.NORMAL)
@@ -165,16 +231,26 @@ class StockWatcherGui:
     def _parse_keywords(self, raw_text: str) -> list[str]:
         return [s.strip() for s in raw_text.split(",") if s.strip()]
 
+    def _parse_to_addresses(self, raw_text: str) -> list[str]:
+        return [s.strip() for s in raw_text.split(",") if s.strip()]
+
     def save_settings(self) -> None:
         try:
             check_every = int(self.interval_var.get().strip())
             timeout = int(self.timeout_var.get().strip())
+            smtp_port = int(self.email_smtp_port_var.get().strip())
         except ValueError:
-            messagebox.showerror("Invalid Settings", "Check Seconds and Timeout Seconds must be numbers.")
+            messagebox.showerror(
+                "Invalid Settings",
+                "Check Seconds, Timeout Seconds, and SMTP Port must be numbers.",
+            )
             return
 
-        if check_every <= 0 or timeout <= 0:
-            messagebox.showerror("Invalid Settings", "Check Seconds and Timeout Seconds must be greater than zero.")
+        if check_every <= 0 or timeout <= 0 or smtp_port <= 0:
+            messagebox.showerror(
+                "Invalid Settings",
+                "Check Seconds, Timeout Seconds, and SMTP Port must be greater than zero.",
+            )
             return
 
         in_keywords = self._parse_keywords(self.in_keywords_var.get())
@@ -183,10 +259,16 @@ class StockWatcherGui:
             messagebox.showerror("Invalid Settings", "Provide at least one in-stock keyword.")
             return
 
-        selector = self.selector_var.get().strip() or None
+        url = self.url_var.get().strip()
+        if not url:
+            messagebox.showerror("Invalid Settings", "URL cannot be empty.")
+            return
 
-        raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig"))
-        raw["url"] = self.url_var.get().strip()
+        selector = self.selector_var.get().strip() or None
+        to_addresses = self._parse_to_addresses(self.email_to_var.get())
+
+        raw = self._read_raw_config()
+        raw["url"] = url
         raw["check_every_seconds"] = check_every
         raw["request_timeout_seconds"] = timeout
         raw["css_selector"] = selector
@@ -195,8 +277,29 @@ class StockWatcherGui:
         raw["notify_every_in_stock_check"] = bool(self.notify_every_var.get())
         raw["open_browser_on_in_stock"] = bool(self.open_browser_var.get())
 
+        email_raw = raw.setdefault("email_notifications", {})
+        email_raw["enabled"] = bool(self.email_enabled_var.get())
+        email_raw["smtp_server"] = self.email_smtp_server_var.get().strip() or "smtp.fastmail.com"
+        email_raw["smtp_port"] = smtp_port
+        email_raw["use_ssl"] = bool(self.email_ssl_var.get())
+        email_raw["use_starttls"] = bool(self.email_starttls_var.get())
+        email_raw["username"] = self.email_username_var.get().strip()
+        email_raw["from_address"] = self.email_from_var.get().strip()
+        email_raw["to_addresses"] = to_addresses
+        email_raw["subject_prefix"] = self.email_subject_prefix_var.get().strip() or "[Stock Alert]"
+
+        entered_password = self.email_password_var.get().strip()
+        env_name = self.email_password_env_var.get().strip()
+        if entered_password:
+            email_raw["password"] = entered_password
+            email_raw.pop("password_env", None)
+        elif env_name:
+            email_raw["password_env"] = env_name
+            email_raw.pop("password", None)
+
         CONFIG_PATH.write_text(json.dumps(raw, indent=2), encoding="utf-8")
         self.cfg = load_config(CONFIG_PATH)
+        self.email_password_var.set("")
         self.footer_var.set(f"Settings saved at {now()}")
 
     def reload_settings(self) -> None:
