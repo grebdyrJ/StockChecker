@@ -55,8 +55,10 @@ class Config:
     email_notifications: Optional[EmailConfig]
 
 
+DATETIME_FORMAT = "%m-%d-%Y %I:%M:%S %p"
+
 def now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now().strftime(DATETIME_FORMAT)
 
 
 def log(message: str) -> None:

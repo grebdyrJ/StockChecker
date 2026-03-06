@@ -1,20 +1,23 @@
-﻿import queue
+﻿import json
+import queue
 import threading
 import time
 import tkinter as tk
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 import requests
 
 from stock_watcher import (
     CONFIG_PATH,
+    DATETIME_FORMAT,
     detect_stock_status,
     fetch_page,
     load_config,
     notify,
+    now,
     open_product_page,
     send_email_notification,
 )
@@ -28,11 +31,15 @@ class CheckEvent:
     error: str | None = None
 
 
+def fmt_dt(value: datetime) -> str:
+    return value.strftime(DATETIME_FORMAT)
+
+
 class StockWatcherGui:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Stock Watcher")
-        self.root.geometry("900x560")
+        self.root.geometry("980x680")
 
         self.cfg = load_config(CONFIG_PATH)
         self.last_status: str | None = None
@@ -45,6 +52,7 @@ class StockWatcherGui:
         self.worker: threading.Thread | None = None
 
         self._build_ui()
+        self._populate_settings_from_config()
         self._set_idle_state()
         self._schedule_queue_pump()
 
@@ -52,24 +60,15 @@ class StockWatcherGui:
         main = ttk.Frame(self.root, padding=14)
         main.pack(fill=tk.BOTH, expand=True)
 
-        top = ttk.Frame(main)
-        top.pack(fill=tk.X)
+        top_controls = ttk.Frame(main)
+        top_controls.pack(fill=tk.X)
 
-        ttk.Label(top, text="URL:", width=10).grid(row=0, column=0, sticky=tk.W)
-        self.url_var = tk.StringVar(value=self.cfg.url)
-        ttk.Entry(top, textvariable=self.url_var, state="readonly").grid(
-            row=0, column=1, sticky=tk.EW, padx=(0, 10)
-        )
-        top.columnconfigure(1, weight=1)
-
-        button_frame = ttk.Frame(top)
-        button_frame.grid(row=0, column=2, sticky=tk.E)
-        self.start_btn = ttk.Button(button_frame, text="Start", command=self.start_monitoring)
-        self.stop_btn = ttk.Button(button_frame, text="Stop", command=self.stop_monitoring)
-        self.check_now_btn = ttk.Button(button_frame, text="Check Now", command=self.check_now)
-        self.start_btn.pack(side=tk.LEFT, padx=4)
-        self.stop_btn.pack(side=tk.LEFT, padx=4)
-        self.check_now_btn.pack(side=tk.LEFT, padx=4)
+        self.start_btn = ttk.Button(top_controls, text="Start", command=self.start_monitoring)
+        self.stop_btn = ttk.Button(top_controls, text="Stop", command=self.stop_monitoring)
+        self.check_now_btn = ttk.Button(top_controls, text="Check Now", command=self.check_now)
+        self.start_btn.pack(side=tk.LEFT, padx=(0, 6))
+        self.stop_btn.pack(side=tk.LEFT, padx=6)
+        self.check_now_btn.pack(side=tk.LEFT, padx=6)
 
         status_card = ttk.LabelFrame(main, text="Current State", padding=12)
         status_card.pack(fill=tk.X, pady=(12, 8))
@@ -84,10 +83,47 @@ class StockWatcherGui:
         self._row(status_card, 2, "Last In Stock", self.last_in_stock_var)
         self._row(status_card, 3, "Next Check", self.next_check_var)
 
+        settings_card = ttk.LabelFrame(main, text="Settings", padding=10)
+        settings_card.pack(fill=tk.X, pady=(4, 8))
+
+        self.url_var = tk.StringVar()
+        self.interval_var = tk.StringVar()
+        self.timeout_var = tk.StringVar()
+        self.selector_var = tk.StringVar()
+        self.in_keywords_var = tk.StringVar()
+        self.out_keywords_var = tk.StringVar()
+        self.notify_every_var = tk.BooleanVar(value=False)
+        self.open_browser_var = tk.BooleanVar(value=False)
+
+        self._setting_row(settings_card, 0, "URL", self.url_var, width=95)
+        self._setting_row(settings_card, 1, "Check Seconds", self.interval_var, width=14)
+        self._setting_row(settings_card, 2, "Timeout Seconds", self.timeout_var, width=14)
+        self._setting_row(settings_card, 3, "CSS Selector", self.selector_var, width=70)
+        self._setting_row(settings_card, 4, "In-Stock Keywords", self.in_keywords_var, width=95)
+        self._setting_row(settings_card, 5, "Out-Stock Keywords", self.out_keywords_var, width=95)
+
+        flag_row = ttk.Frame(settings_card)
+        flag_row.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=(6, 0))
+        ttk.Checkbutton(
+            flag_row,
+            text="Notify every in-stock check",
+            variable=self.notify_every_var,
+        ).pack(side=tk.LEFT, padx=(0, 12))
+        ttk.Checkbutton(
+            flag_row,
+            text="Open browser on in-stock",
+            variable=self.open_browser_var,
+        ).pack(side=tk.LEFT)
+
+        action_row = ttk.Frame(settings_card)
+        action_row.grid(row=7, column=0, columnspan=2, sticky=tk.W, pady=(10, 0))
+        ttk.Button(action_row, text="Save Settings", command=self.save_settings).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Button(action_row, text="Reload Settings", command=self.reload_settings).pack(side=tk.LEFT)
+
         history_card = ttk.LabelFrame(main, text="Recent Checks", padding=10)
         history_card.pack(fill=tk.BOTH, expand=True)
 
-        self.history_list = tk.Listbox(history_card, height=15)
+        self.history_list = tk.Listbox(history_card, height=13)
         self.history_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         scrollbar = ttk.Scrollbar(history_card, orient=tk.VERTICAL, command=self.history_list.yview)
@@ -103,6 +139,21 @@ class StockWatcherGui:
         ttk.Label(parent, text=f"{label}:", width=14).grid(row=row, column=0, sticky=tk.W, pady=2)
         ttk.Label(parent, textvariable=var).grid(row=row, column=1, sticky=tk.W, pady=2)
 
+    def _setting_row(self, parent: ttk.LabelFrame, row: int, label: str, var: tk.StringVar, width: int) -> None:
+        ttk.Label(parent, text=f"{label}:", width=16).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=var, width=width).grid(row=row, column=1, sticky=tk.EW, pady=2, padx=(6, 0))
+        parent.columnconfigure(1, weight=1)
+
+    def _populate_settings_from_config(self) -> None:
+        self.url_var.set(self.cfg.url)
+        self.interval_var.set(str(self.cfg.check_every_seconds))
+        self.timeout_var.set(str(self.cfg.request_timeout_seconds))
+        self.selector_var.set(self.cfg.css_selector or "")
+        self.in_keywords_var.set(", ".join(self.cfg.in_stock_keywords))
+        self.out_keywords_var.set(", ".join(self.cfg.out_of_stock_keywords))
+        self.notify_every_var.set(self.cfg.notify_every_in_stock_check)
+        self.open_browser_var.set(self.cfg.open_browser_on_in_stock)
+
     def _set_idle_state(self) -> None:
         self.start_btn.configure(state=tk.NORMAL)
         self.stop_btn.configure(state=tk.DISABLED)
@@ -110,6 +161,48 @@ class StockWatcherGui:
     def _set_running_state(self) -> None:
         self.start_btn.configure(state=tk.DISABLED)
         self.stop_btn.configure(state=tk.NORMAL)
+
+    def _parse_keywords(self, raw_text: str) -> list[str]:
+        return [s.strip() for s in raw_text.split(",") if s.strip()]
+
+    def save_settings(self) -> None:
+        try:
+            check_every = int(self.interval_var.get().strip())
+            timeout = int(self.timeout_var.get().strip())
+        except ValueError:
+            messagebox.showerror("Invalid Settings", "Check Seconds and Timeout Seconds must be numbers.")
+            return
+
+        if check_every <= 0 or timeout <= 0:
+            messagebox.showerror("Invalid Settings", "Check Seconds and Timeout Seconds must be greater than zero.")
+            return
+
+        in_keywords = self._parse_keywords(self.in_keywords_var.get())
+        out_keywords = self._parse_keywords(self.out_keywords_var.get())
+        if not in_keywords:
+            messagebox.showerror("Invalid Settings", "Provide at least one in-stock keyword.")
+            return
+
+        selector = self.selector_var.get().strip() or None
+
+        raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig"))
+        raw["url"] = self.url_var.get().strip()
+        raw["check_every_seconds"] = check_every
+        raw["request_timeout_seconds"] = timeout
+        raw["css_selector"] = selector
+        raw["in_stock_keywords"] = in_keywords
+        raw["out_of_stock_keywords"] = out_keywords
+        raw["notify_every_in_stock_check"] = bool(self.notify_every_var.get())
+        raw["open_browser_on_in_stock"] = bool(self.open_browser_var.get())
+
+        CONFIG_PATH.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+        self.cfg = load_config(CONFIG_PATH)
+        self.footer_var.set(f"Settings saved at {now()}")
+
+    def reload_settings(self) -> None:
+        self.cfg = load_config(CONFIG_PATH)
+        self._populate_settings_from_config()
+        self.footer_var.set(f"Settings reloaded at {now()}")
 
     def start_monitoring(self) -> None:
         if self.worker and self.worker.is_alive():
@@ -183,7 +276,7 @@ class StockWatcherGui:
         if self.cfg.email_notifications and self.cfg.email_notifications.enabled:
             email_subject = "Item is in stock"
             email_body = (
-                f"Detected in stock at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.\n\n"
+                f"Detected in stock at {now()}.\n\n"
                 f"URL: {self.cfg.url}\n"
                 f"Detection: {source}\n"
             )
@@ -216,7 +309,7 @@ class StockWatcherGui:
                 break
 
             if event.status == "next_check":
-                self.next_check_var.set(event.timestamp.strftime("%Y-%m-%d %H:%M:%S"))
+                self.next_check_var.set(fmt_dt(event.timestamp))
                 continue
 
             self.history.appendleft(event)
@@ -224,7 +317,7 @@ class StockWatcherGui:
             self._render_history()
 
     def _render_event(self, event: CheckEvent) -> None:
-        t = event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        t = fmt_dt(event.timestamp)
         self.last_check_var.set(t)
 
         if event.status == "in_stock":
@@ -245,7 +338,7 @@ class StockWatcherGui:
     def _render_history(self) -> None:
         self.history_list.delete(0, tk.END)
         for item in self.history:
-            t = item.timestamp.strftime("%H:%M:%S")
+            t = fmt_dt(item.timestamp)
             if item.status == "error":
                 line = f"[{t}] ERROR ({item.source}) {item.error}"
             else:

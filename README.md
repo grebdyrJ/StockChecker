@@ -75,6 +75,8 @@ The GUI includes:
 - Last in-stock time (current session)
 - Next scheduled check time
 - Recent check history with detection source/errors
+- In-app editable settings (URL, interval, selector, keywords, flags) with Save/Reload to config.json
+- American timestamp format (`MM-DD-YYYY hh:mm:ss AM/PM`)
 
 ## Optional: run at login
 
@@ -91,3 +93,4 @@ Startup folder path:
 - If email is misconfigured, desktop toast alerts still work and the app logs the email error.
 - Some stores render stock status with JavaScript after page load. If this app always shows `unknown`, the page likely needs a browser-automation version (Playwright/Selenium).
 - Respect website terms and avoid very aggressive check intervals.
+
