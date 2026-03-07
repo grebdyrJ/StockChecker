@@ -56,23 +56,28 @@ GUI mode:
 python stock_watcher_gui.py
 ```
 
-## Build standalone EXE (no Python needed on target machine)
+## Build standalone EXE
 
-Build machine steps:
+### Option A: Build locally (requires Python on build machine)
 
 ```powershell
 pip install -r requirements-build.txt
 powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
 ```
 
-Outputs:
-- `dist\stock-watcher.exe` (CLI)
-- `dist\stock-watcher-gui.exe` (GUI)
+### Option B: Build in GitHub Actions (no local Python needed)
 
-Deploy steps:
-- Copy your chosen EXE and `config.json` to the target Windows machine.
-- If using env-var password mode, set the env var on that machine.
-- Run the EXE directly.
+1. Push your branch to GitHub.
+2. In GitHub: **Actions** -> **Build Windows EXE** -> **Run workflow**.
+3. When it completes, download artifact **stock-watcher-windows**.
+4. Inside artifact: `stock-watcher-gui.exe`, `stock-watcher.exe`, `config.example.json`.
+
+## Deploy to a machine without Python
+
+1. Copy `stock-watcher-gui.exe` (or CLI exe) to the target machine.
+2. Copy `config.example.json` and rename it to `config.json`.
+3. Edit `config.json` for your product + email settings.
+4. Run the EXE directly.
 
 Important: the app reads `config.json` from the same folder as the EXE.
 
